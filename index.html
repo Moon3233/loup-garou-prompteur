@@ -1225,6 +1225,7 @@
         <div class="role-selector-controls">
             <button class="role-toggle-btn" onclick="toggleAllRoles(true)">Tout sélectionner</button>
             <button class="role-toggle-btn" onclick="toggleAllRoles(false)">Tout désélectionner</button>
+            <button class="role-toggle-btn" onclick="shareGameData()" style="background: rgba(100, 200, 100, 0.2); border-color: rgba(100, 200, 100, 0.5); width: 100%;">📤 Partager les données</button>
             <button class="role-toggle-btn" onclick="reloadWithMenuOpen()" style="background: rgba(100, 150, 255, 0.2); border-color: rgba(100, 150, 255, 0.5); width: 100%;">🔄 Recharger la page</button>
             <div style="position: relative; width: 100%;">
                 <button class="role-toggle-btn" id="resetRoleNamesBtn" onclick="showResetConfirmation()" style="background: rgba(255, 100, 100, 0.2); border-color: rgba(255, 100, 100, 0.5); width: 100%;">🗑️ Réinitialiser les prénoms</button>
@@ -2727,6 +2728,74 @@
             window.location.reload();
         }
 
+        // Partager les données du jeu (prénoms et rôles actifs) via URL
+        function shareGameData() {
+            const roleNames = getRoleNames();
+            const gameData = {
+                roleNames: roleNames,
+                activeRoles: activeRoles
+            };
+            
+            // Encoder les données en base64 pour l'URL
+            const encoded = btoa(JSON.stringify(gameData));
+            const shareUrl = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
+            
+            // Copier dans le presse-papier si possible
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast('✅ Lien copié ! Partagez-le avec les autres appareils');
+                }).catch(() => {
+                    // Fallback si la copie échoue
+                    prompt('Copiez ce lien pour partager les données:', shareUrl);
+                });
+            } else {
+                // Fallback pour les navigateurs sans clipboard API
+                prompt('Copiez ce lien pour partager les données:', shareUrl);
+            }
+        }
+
+        // Charger les données depuis l'URL au démarrage
+        function loadGameDataFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const encodedData = urlParams.get('data');
+            
+            if (encodedData) {
+                try {
+                    const gameData = JSON.parse(atob(encodedData));
+                    
+                    // Charger les prénoms
+                    if (gameData.roleNames) {
+                        saveRoleNames(gameData.roleNames);
+                    }
+                    
+                    // Charger les rôles actifs
+                    if (gameData.activeRoles) {
+                        Object.keys(gameData.activeRoles).forEach(roleId => {
+                            if (activeRoles.hasOwnProperty(roleId)) {
+                                activeRoles[roleId] = gameData.activeRoles[roleId];
+                            }
+                        });
+                    }
+                    
+                    // Régénérer l'affichage
+                    generatePhases();
+                    renderPhaseSelector();
+                    renderRoleSelector();
+                    renderEliminationList();
+                    renderNamesManagement();
+                    updateDisplay();
+                    
+                    // Nettoyer l'URL pour éviter de recharger à chaque fois
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    
+                    showToast('✅ Données chargées depuis le lien partagé');
+                } catch (error) {
+                    console.error('Erreur lors du chargement des données:', error);
+                    showToast('❌ Erreur lors du chargement des données');
+                }
+            }
+        }
+
 
         // Créer une carte d'aide pour un rôle
         function createRoleHelpCard(container, roleName, imagePath, description, icon) {
@@ -3093,6 +3162,9 @@
         }
 
         function init() {
+            // Charger les données depuis l'URL si présentes (doit être fait avant renderRoleSelector)
+            loadGameDataFromUrl();
+            
             renderRoleSelector();
             renderEliminationList();
             renderNamesManagement();
